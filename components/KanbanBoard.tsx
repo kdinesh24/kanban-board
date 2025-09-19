@@ -1,4 +1,3 @@
-// components/KanbanBoard.tsx
 "use client";
 
 import {
@@ -26,7 +25,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { useEffect, useMemo, useState } from "react";
-import { GripVertical, Search, Filter as FilterIcon, Plus, CircleCheck, X } from "lucide-react";
+import { GripVertical, Search, Filter as FilterIcon, Plus, CircleCheck, X, ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,43 +38,27 @@ import {
   DialogClose,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Column from "./Column";
 import TaskOverlay from "./TaskOverlay";
 import type { Task, Column as ColumnType, Priority } from "@/types/kanban";
 
-// Columns
 const initialColumns: ColumnType[] = [
   { id: "backlog", title: "Backlog" },
   { id: "in-progress", title: "In Progress" },
   { id: "done", title: "Done" },
 ];
 
-// Tasks
 const initialTasks: Task[] = [
-  {
-    id: "t1",
-    title: "Integrate Stripe payment gateway",
-    description: "Connect checkout and test webhooks.",
-    priority: "High",
-    progress: 10,
-    columnId: "backlog",
-  },
-  {
-    id: "t2",
-    title: "Dark mode toggle implementation",
-    description: "Add theme switcher and persist preference.",
-    priority: "High",
-    progress: 40,
-    columnId: "in-progress",
-  },
-  {
-    id: "t3",
-    title: "Set up CI/CD pipeline",
-    description: "CI with checks, CD to Vercel.",
-    priority: "Medium",
-    progress: 100,
-    columnId: "done",
-  },
+  { id: "t1", title: "Integrate Stripe payment gateway", description: "Connect checkout and test webhooks.", priority: "High", columnId: "backlog" },
+  { id: "t2", title: "Dark mode toggle implementation", description: "Add theme switcher and persist preference.", priority: "High", columnId: "in-progress" },
+  { id: "t3", title: "Set up CI/CD pipeline", description: "CI with checks, CD to Vercel.", priority: "Medium", columnId: "done" },
 ];
 
 type BoardState = {
@@ -93,7 +76,6 @@ function toTasksByColumn(cols: ColumnType[], tasks: Task[]): Record<string, Task
   return map;
 }
 
-// Top tabs
 function Tabs() {
   return (
     <div className="flex items-center gap-2">
@@ -134,50 +116,46 @@ function matchesFilters(task: Task, f: Filters) {
   return inSearch && inColumns && inPriority && inMin && inMax;
 }
 
-// Column overlay during drag
+function taskMatchScore(task: Task, qLower: string): number {
+  if (!qLower) return Infinity;
+  const s = `${task.title} ${task.description ?? ""}`.toLowerCase();
+  const idx = s.indexOf(qLower);
+  return idx === -1 ? Infinity : idx;
+}
+
 function ColumnOverlay({ column }: { column: ColumnType | null }) {
   if (!column) return null;
   return (
-    <div className="w-80 select-none">
-      <div className="rounded-xl border bg-white dark:bg-neutral-900 shadow-xl ring-1 ring-black/5 dark:ring-white/10 p-3">
-        <div className="text-sm font-semibold capitalize">{column.title}</div>
+    <div className="w-80 select-none pointer-events-none">
+      <div className="rounded-xl border bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm shadow-2xl ring-1 ring-black/10 dark:ring-white/10 p-3 opacity-80 scale-100">
+        <div className="text-sm font-semibold capitalize text-neutral-900 dark:text-neutral-100">{column.title}</div>
         <div className="mt-2 h-20 rounded-md bg-neutral-100/80 dark:bg-neutral-800/80" />
       </div>
     </div>
   );
 }
 
-// Sortable wrapper for entire column with header actions
 function DraggableColumn({
   column,
   tasks,
+  count,
   activeColumnId,
   onOpenAddTask,
 }: {
   column: ColumnType;
   tasks: Task[];
+  count: number;
   activeColumnId: string | null;
   onOpenAddTask: (colId: string) => void;
 }) {
   const animateLayoutChanges: AnimateLayoutChanges = () => false;
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: `col-${column.id}`,
-    data: { type: "column-sortable", columnId: column.id },
-    animateLayoutChanges,
-    transition: {
-      duration: 180,
-      easing: "cubic-bezier(0.25, 1, 0.5, 1)",
-    },
-  });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({
+      id: `col-${column.id}`,
+      data: { type: "column-sortable", columnId: column.id },
+      animateLayoutChanges,
+      transition: { duration: 180, easing: "cubic-bezier(0.25, 1, 0.5, 1)" },
+    });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -193,13 +171,12 @@ function DraggableColumn({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7"
+        className="h-7 w-7 hover:bg-neutral-200 dark:hover:bg-neutral-700"
         onClick={() => onOpenAddTask(column.id)}
         aria-label={`Add task to ${column.title}`}
       >
         <Plus className="h-4 w-4" />
       </Button>
-
       <Button
         ref={setActivatorNodeRef as any}
         {...attributes}
@@ -207,7 +184,7 @@ function DraggableColumn({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7 cursor-grab active:cursor-grabbing"
+        className="h-7 w-7 cursor-grab active:cursor-grabbing hover:bg-neutral-200 dark:hover:bg-neutral-700"
         aria-label={`Reorder ${column.title}`}
       >
         <GripVertical className="h-4 w-4" />
@@ -216,12 +193,8 @@ function DraggableColumn({
   );
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={["relative touch-none", isActive ? "opacity-0" : "opacity-100"].join(" ")}
-    >
-      <Column id={column.id} title={column.title} tasks={tasks} headerRight={headerRight} />
+    <div ref={setNodeRef} style={style} className={["relative touch-none transition-opacity duration-200", isActive ? "opacity-30" : "opacity-100"].join(" ")}>
+      <Column id={column.id} title={column.title} tasks={tasks} count={count} headerRight={headerRight} />
     </div>
   );
 }
@@ -238,12 +211,12 @@ export default function KanbanBoard() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumn, setActiveColumn] = useState<ColumnType | null>(null);
 
-  // Task dialog
+  // Dialogs
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [taskDialogCol, setTaskDialogCol] = useState<string | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
+  const [taskPriority, setTaskPriority] = useState<Priority>("Medium");
 
-  // Board dialog
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
   const [boardTitle, setBoardTitle] = useState("");
   const [boardFirstTask, setBoardFirstTask] = useState("");
@@ -251,68 +224,96 @@ export default function KanbanBoard() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Sensors
+  // Sensors with improved activation constraints
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor)
   );
 
-  // Collision
   const collisionDetection = (args: any) => {
     const pointer = pointerWithin(args);
     return pointer.length ? pointer : rectIntersection(args);
   };
 
+  // Search state
+  const qLower = filters.search.trim().toLowerCase();
+
+  // Compute render model with counts and search-aware ordering
+  const renderModel = useMemo(() => {
+    const columns = board.columns.map((c) => {
+      const tasks = board.tasksByColumn[c.id] ?? [];
+      const totalCount = tasks.length;
+
+      const scored = tasks.map((t, idx) => ({
+        task: t,
+        score: taskMatchScore(t, qLower),
+        idx,
+      }));
+      const matchedCount = scored.reduce((acc, s) => acc + (s.score !== Infinity ? 1 : 0), 0);
+      const bestScore = scored.reduce((min, s) => (s.score < min ? s.score : min), Infinity);
+
+      const tasksForRender =
+        qLower.length === 0
+          ? tasks
+          : scored
+              .sort((a, b) => {
+                const am = a.score !== Infinity ? 0 : 1;
+                const bm = b.score !== Infinity ? 0 : 1;
+                if (am !== bm) return am - bm;
+                if (a.score !== b.score) return a.score - b.score;
+                return a.idx - b.idx;
+              })
+              .map((s) => s.task);
+
+      return {
+        column: c,
+        totalCount,
+        matchedCount,
+        bestScore,
+        tasksForRender,
+      };
+    });
+
+    const columnsForRender =
+      qLower.length === 0
+        ? columns
+        : [...columns].sort((a, b) => {
+            if (a.matchedCount !== b.matchedCount) return b.matchedCount - a.matchedCount;
+            if (a.bestScore !== b.bestScore) return a.bestScore - b.bestScore;
+            const ai = board.columns.findIndex((c) => c.id === a.column.id);
+            const bi = board.columns.findIndex((c) => c.id === b.column.id);
+            return ai - bi;
+          });
+
+    return columnsForRender;
+  }, [board.columns, board.tasksByColumn, qLower]);
+
   const columnSortableIds = useMemo(
-    () => board.columns.map((c) => `col-${c.id}`),
-    [board.columns]
+    () => renderModel.map((r) => `col-${r.column.id}`),
+    [renderModel]
   );
 
-  // Filters
-  const filteredTasksByColumn = useMemo(() => {
-    const out: Record<string, Task[]> = {};
-    for (const col of board.columns) {
-      const list = board.tasksByColumn[col.id] ?? [];
-      out[col.id] = list.filter((t) => matchesFilters(t, filters));
-    }
-    return out;
-  }, [board.tasksByColumn, board.columns, filters]);
+  function matchesFiltersAll(task: Task) {
+    return matchesFilters(task, filters);
+  }
 
+  // Handlers
   function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value;
-    setFilters((f) => ({ ...f, search: value }));
+    setFilters((f) => ({ ...f, search: e.target.value }));
   }
 
-  function toggleColumnFilter(id: string) {
-    setFilters((f) => ({ ...f, columns: { ...f.columns, [id]: !f.columns[id] } }));
-  }
-  function togglePriorityFilter(p: Priority) {
-    setFilters((f) => ({ ...f, priorities: { ...f.priorities, [p]: !f.priorities[p] } }));
-  }
-
-  // Column/task helpers
   function createColumn(id: string, title: string) {
     setBoard((prev) => ({
       columns: [...prev.columns, { id, title }],
       tasksByColumn: { ...prev.tasksByColumn, [id]: [] },
     }));
-    setFilters((f) => ({
-      ...f,
-      columns: { ...f.columns, [id]: true },
-    }));
+    setFilters((f) => ({ ...f, columns: { ...f.columns, [id]: true } }));
   }
 
-  function addTask(colId: string, title: string) {
+  function addTask(colId: string, title: string, priority: Priority) {
     const newId = `t-${Math.random().toString(36).slice(2, 8)}`;
-    const newTask: Task = {
-      id: newId,
-      title,
-      description: "",
-      priority: "Medium",
-      progress: 0,
-      columnId: colId,
-    };
+    const newTask: Task = { id: newId, title, description: "", priority, columnId: colId };
     setBoard((prev) => ({
       columns: prev.columns,
       tasksByColumn: {
@@ -322,25 +323,26 @@ export default function KanbanBoard() {
     }));
   }
 
-  // Add task dialog
   function openTaskDialog(colId: string) {
     setTaskDialogCol(colId);
     setTaskTitle("");
+    setTaskPriority("Medium");
     setTaskDialogOpen(true);
   }
+
   function confirmAddTask() {
     const colId = taskDialogCol;
     const title = taskTitle.trim();
-    if (colId && title) addTask(colId, title);
+    if (colId && title) addTask(colId, title, taskPriority);
     setTaskDialogOpen(false);
   }
 
-  // Add board dialog
   function openBoardDialog() {
     setBoardTitle("");
     setBoardFirstTask("");
     setBoardDialogOpen(true);
   }
+
   function confirmAddBoard() {
     const title = boardTitle.trim();
     if (!title) {
@@ -355,8 +357,8 @@ export default function KanbanBoard() {
       id = `${id}-${i}`;
     }
     createColumn(id, title);
-    const firstTask = boardFirstTask.trim();
-    if (firstTask) addTask(id, firstTask);
+    const first = boardFirstTask.trim();
+    if (first) addTask(id, first, "Medium");
     setBoardDialogOpen(false);
   }
 
@@ -390,7 +392,6 @@ export default function KanbanBoard() {
     const activeType = active.data.current?.type as string | undefined;
     const overType = over.data.current?.type as string | undefined;
 
-    // Columns
     if (activeType === "column-sortable" && overType === "column-sortable") {
       const activeId = String(active.id);
       const overId = String(over.id);
@@ -405,7 +406,6 @@ export default function KanbanBoard() {
       return;
     }
 
-    // Tasks
     const activeId = String(active.id);
     const overId = String(over.id);
 
@@ -413,6 +413,7 @@ export default function KanbanBoard() {
       const sourceCol = findContainerOfTask(activeId);
       const targetCol = findContainerOfTask(overId);
       if (!sourceCol || !targetCol) return;
+
       setBoard((prev) => {
         const source = [...prev.tasksByColumn[sourceCol]];
         const target = sourceCol === targetCol ? source : [...prev.tasksByColumn[targetCol]];
@@ -433,6 +434,7 @@ export default function KanbanBoard() {
       const sourceCol = findContainerOfTask(activeId);
       const targetCol = String(over.data.current?.columnId);
       if (!sourceCol || !targetCol || sourceCol === targetCol) return;
+
       setBoard((prev) => {
         const source = [...prev.tasksByColumn[sourceCol]];
         const target = [...prev.tasksByColumn[targetCol]];
@@ -468,6 +470,7 @@ export default function KanbanBoard() {
         : overType === "column"
         ? String(over.data.current?.columnId)
         : null;
+
     if (!sourceCol || !targetCol) return;
 
     if (sourceCol === targetCol && overType === "task") {
@@ -476,10 +479,7 @@ export default function KanbanBoard() {
         const oldIndex = list.findIndex((t) => t.id === activeId);
         const newIndex = list.findIndex((t) => t.id === overId);
         if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
-        return {
-          columns: prev.columns,
-          tasksByColumn: { ...prev.tasksByColumn, [sourceCol]: arrayMove(list, oldIndex, newIndex) },
-        };
+        return { columns: prev.columns, tasksByColumn: { ...prev.tasksByColumn, [sourceCol]: arrayMove(list, oldIndex, newIndex) } };
       });
     }
   }
@@ -489,16 +489,10 @@ export default function KanbanBoard() {
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <Tabs />
-        <div className="flex items-center gap-3 flex-1 max-w-2xl mx-4">
+        <div className="flex items-center gap-3 flex-1 max-w-2xl mx-4 pt-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
-            <Input
-              value={filters.search}
-              onChange={handleSearch}
-              placeholder="Search tasks..."
-              className="pl-9"
-              aria-label="Search tasks"
-            />
+            <Input value={filters.search} onChange={handleSearch} placeholder="Search tasks..." className="pl-9" aria-label="Search tasks" />
           </div>
           <Button variant="outline" onClick={() => setShowFilter((s) => !s)}>
             <FilterIcon className="mr-2 h-4 w-4" />
@@ -511,7 +505,7 @@ export default function KanbanBoard() {
         </Button>
       </div>
 
-      {/* Board lanes */}
+      {/* Board lanes with search-aware order */}
       {mounted ? (
         <DndContext
           id="kanban-dnd"
@@ -538,13 +532,12 @@ export default function KanbanBoard() {
           >
             <SortableContext items={columnSortableIds} strategy={horizontalListSortingStrategy}>
               <div className="inline-flex min-w-max gap-4 md:gap-6">
-                {board.columns.map((col) => (
+                {renderModel.map(({ column, tasksForRender, totalCount }) => (
                   <DraggableColumn
-                    key={col.id}
-                    column={col}
-                    tasks={(board.tasksByColumn[col.id] ?? []).filter((t) =>
-                      matchesFilters(t, filters)
-                    )}
+                    key={column.id}
+                    column={column}
+                    tasks={tasksForRender.filter(matchesFiltersAll)}
+                    count={totalCount}
                     activeColumnId={activeColumn?.id ?? null}
                     onOpenAddTask={openTaskDialog}
                   />
@@ -553,11 +546,12 @@ export default function KanbanBoard() {
             </SortableContext>
           </div>
 
-          <DragOverlay
-            dropAnimation={{
-              duration: 220,
-              easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+          <DragOverlay 
+            dropAnimation={{ 
+              duration: 300, 
+              easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" 
             }}
+            style={{ cursor: "grabbing" }}
           >
             {activeTask ? <TaskOverlay task={activeTask} /> : <ColumnOverlay column={activeColumn} />}
           </DragOverlay>
@@ -578,31 +572,48 @@ export default function KanbanBoard() {
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
           </DialogHeader>
-          <div className="flex items-center gap-2">
-            <Input
-              autoFocus
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="Enter task name..."
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  confirmAddTask();
-                }
-              }}
-              aria-label="Task name"
-              className="h-11"
-            />
-            <Button type="button" className="h-11 w-11" onClick={confirmAddTask} aria-label="Confirm add task">
-              <CircleCheck className="h-5 w-5" />
-            </Button>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Task name</label>
+              <Input
+                autoFocus
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="Enter task name..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    confirmAddTask();
+                  }
+                }}
+                aria-label="Task name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Priority</label>
+              <Select value={taskPriority} onValueChange={(value: Priority) => setTaskPriority(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          <DialogFooter className="gap-2">
+            <DialogClose asChild>
+              <Button variant="ghost">Cancel</Button>
+            </DialogClose>
+            <Button onClick={confirmAddTask} disabled={!taskTitle.trim()}>
+              <CircleCheck className="mr-2 h-4 w-4" />
+              Create
+            </Button>
+          </DialogFooter>
           <DialogClose asChild>
-            <button
-              type="button"
-              aria-label="Close"
-              className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
-            >
+            <button type="button" aria-label="Close" className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none">
               <X className="h-4 w-4" />
             </button>
           </DialogClose>
@@ -655,11 +666,7 @@ export default function KanbanBoard() {
           </DialogFooter>
 
           <DialogClose asChild>
-            <button
-              type="button"
-              aria-label="Close"
-              className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
-            >
+            <button type="button" aria-label="Close" className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none">
               <X className="h-4 w-4" />
             </button>
           </DialogClose>
