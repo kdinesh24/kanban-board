@@ -1,9 +1,12 @@
 "use client";
 
-import { useDroppable, useDndContext } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import TaskCard from "./TaskCard";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import type { Task } from "@/types/kanban";
+import TaskCard from "./TaskCard";
 
 export default function Column({
   id,
@@ -33,7 +36,9 @@ export default function Column({
         "w-80 shrink-0 rounded-xl transition-all duration-200",
         "bg-neutral-50 dark:bg-neutral-900/40",
         "border border-neutral-200/60 dark:border-neutral-800/60",
-        isOver && isDraggingTask ? "ring-2 ring-neutral-300 dark:ring-neutral-600 border-neutral-400 dark:border-neutral-500 bg-neutral-100/50 dark:bg-neutral-800/50" : "",
+        isOver && isDraggingTask
+          ? "ring-2 ring-neutral-300 dark:ring-neutral-600 border-neutral-400 dark:border-neutral-500 bg-neutral-100/50 dark:bg-neutral-800/50"
+          : "",
       ].join(" ")}
     >
       {/* Header */}
@@ -59,11 +64,14 @@ export default function Column({
             : "bg-transparent",
         ].join(" ")}
       >
-        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {tasks.map((task) => (
             <TaskCard key={task.id} task={task} />
           ))}
-          
+
           {/* Show preview placeholder when hovering with a task */}
           {isOver && activeTask && isDraggingTask && (
             <div className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-neutral-100/30 dark:bg-neutral-800/30 px-4 py-3 opacity-50 transition-all duration-200">
@@ -76,18 +84,22 @@ export default function Column({
                 </div>
               )}
               <div className="flex items-center mt-2">
-                <span className={[
-                  "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium opacity-70",
-                  activeTask.priority === "High" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400" :
-                  activeTask.priority === "Medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400" :
-                  "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-                ].join(" ")}>
+                <span
+                  className={[
+                    "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium opacity-70",
+                    activeTask.priority === "High"
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                      : activeTask.priority === "Medium"
+                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400"
+                        : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+                  ].join(" ")}
+                >
                   {activeTask.priority}
                 </span>
               </div>
             </div>
           )}
-          
+
           {tasks.length === 0 && !isOver && (
             <div className="flex items-center justify-center h-20 text-neutral-400 dark:text-neutral-500 text-sm">
               No tasks yet

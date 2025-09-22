@@ -1,9 +1,9 @@
 "use client";
 
+import { type AnimateLayoutChanges, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useSortable, AnimateLayoutChanges } from "@dnd-kit/sortable";
-import { Task } from "@/types/kanban";
 import { memo } from "react";
+import type { Task } from "@/types/kanban";
 
 const animateLayoutChanges: AnimateLayoutChanges = (args) => {
   if (args.isDragging) return false;
@@ -36,8 +36,8 @@ function TaskCardBase({ task }: { task: Task }) {
   // While dragging this card, show a subtle placeholder
   if (isDragging) {
     return (
-      <div 
-        ref={setNodeRef} 
+      <div
+        ref={setNodeRef}
         style={style}
         className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-neutral-100/50 dark:bg-neutral-800/50 opacity-30 transition-all duration-200"
       >
@@ -80,12 +80,16 @@ function TaskCardBase({ task }: { task: Task }) {
         </div>
       )}
       <div className="flex items-center mt-2">
-        <span className={[
-          "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-          task.priority === "High" ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" :
-          task.priority === "Medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400" :
-          "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-        ].join(" ")}>
+        <span
+          className={[
+            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+            task.priority === "High"
+              ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+              : task.priority === "Medium"
+                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
+                : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
+          ].join(" ")}
+        >
           {task.priority}
         </span>
       </div>
