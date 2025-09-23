@@ -3,6 +3,7 @@
 import {
   Archive,
   Bold,
+  CheckSquare,
   Edit,
   FileText,
   Grid,
@@ -10,6 +11,7 @@ import {
   Italic,
   Link,
   List,
+  Plus,
   Search,
   Tag,
   Trash2,
@@ -27,7 +29,19 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+interface Task {
+  id: string;
+  text: string;
+  completed: boolean;
+}
 
 interface Note {
   id: string;
@@ -39,6 +53,8 @@ interface Note {
   isStarred: boolean;
   isArchived: boolean;
   images?: string[];
+  tasks?: Task[];
+  noteType: "text" | "task";
 }
 
 interface Label {
@@ -68,15 +84,53 @@ export function NotesApp() {
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNoteContent, setNewNoteContent] = useState("");
   const [newNoteImages, setNewNoteImages] = useState<string[]>([]);
+  const [newNoteTasks, setNewNoteTasks] = useState<Task[]>([]);
+  const [newNoteType, setNewNoteType] = useState<"text" | "task">("text");
+  const [currentTask, setCurrentTask] = useState("");
   const [isLabelDialogOpen, setIsLabelDialogOpen] = useState(false);
   const [newLabelName, setNewLabelName] = useState("");
   const [newLabelColor, setNewLabelColor] = useState("#3b82f6");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const selectedNoteEditorRef = useRef<HTMLDivElement>(null);
+  const newNoteEditorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
 
-  // Sample notes data
+  // Formatting functions for text
+  const applyFormatting = (
+    format: "bold" | "italic" | "underline",
+    editorRef: React.RefObject<HTMLDivElement | null>,
+  ) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+
+    try {
+      switch (format) {
+        case "bold":
+          document.execCommand("bold", false, undefined);
+          break;
+        case "italic":
+          document.execCommand("italic", false, undefined);
+          break;
+        case "underline":
+          document.execCommand("underline", false, undefined);
+          break;
+      }
+    } catch (error) {
+      console.error("Formatting command failed:", error);
+    }
+  };
+
+  const formatNewNoteText = (format: "bold" | "italic" | "underline") => {
+    applyFormatting(format, newNoteEditorRef);
+  };
+
+  const formatSelectedNoteText = (format: "bold" | "italic" | "underline") => {
+    applyFormatting(format, selectedNoteEditorRef);
+  };
+
   useEffect(() => {
     const sampleNotes: Note[] = [
       {
@@ -90,18 +144,28 @@ export function NotesApp() {
         isStarred: false,
         isArchived: false,
         images: [],
+        noteType: "text",
       },
       {
         id: "2",
         title: "Weekly Grocery List",
-        content:
-          "Organic vegetables\nWhole grain bread\nGreek yogurt\nFresh fruits\nChicken breast\nQuinoa\nAlmond milk",
+        content: "",
         tags: ["Personal", "Meetings"],
         createdAt: new Date("2024-01-20"),
         updatedAt: new Date("2024-01-20"),
         isStarred: false,
         isArchived: false,
         images: [],
+        noteType: "task",
+        tasks: [
+          { id: "1", text: "Organic vegetables", completed: true },
+          { id: "2", text: "Whole grain bread", completed: true },
+          { id: "3", text: "Greek yogurt", completed: false },
+          { id: "4", text: "Fresh fruits", completed: false },
+          { id: "5", text: "Chicken breast", completed: false },
+          { id: "6", text: "Quinoa", completed: true },
+          { id: "7", text: "Almond milk", completed: false },
+        ],
       },
       {
         id: "3",
@@ -114,6 +178,7 @@ export function NotesApp() {
         isStarred: true,
         isArchived: false,
         images: [],
+        noteType: "text",
       },
       {
         id: "4",
@@ -126,18 +191,24 @@ export function NotesApp() {
         isStarred: false,
         isArchived: false,
         images: [],
+        noteType: "text",
       },
       {
         id: "5",
         title: "Home Renovation Tasks",
-        content:
-          "Paint living room\nReplace kitchen faucet\nFix bathroom tiles",
+        content: "",
         tags: [],
         createdAt: new Date("2024-01-25"),
         updatedAt: new Date("2024-01-25"),
         isStarred: false,
         isArchived: false,
         images: [],
+        noteType: "task",
+        tasks: [
+          { id: "1", text: "Paint living room", completed: false },
+          { id: "2", text: "Replace kitchen faucet", completed: false },
+          { id: "3", text: "Fix bathroom tiles", completed: false },
+        ],
       },
     ];
     setNotes(sampleNotes);
@@ -273,25 +344,34 @@ export function NotesApp() {
     if (
       !newNoteTitle.trim() &&
       !newNoteContent.trim() &&
-      newNoteImages.length === 0
+      newNoteImages.length === 0 &&
+      newNoteTasks.length === 0
     )
       return;
 
     const newNote: Note = {
       id: Date.now().toString(),
       title: newNoteTitle.trim() || "Untitled Note",
-      content: newNoteContent,
+      content: newNoteEditorRef.current?.innerHTML || newNoteContent,
       tags: [],
       createdAt: new Date(),
       updatedAt: new Date(),
       isStarred: false,
       isArchived: false,
       images: newNoteImages,
+      noteType: newNoteType,
+      tasks: newNoteType === "task" ? newNoteTasks : undefined,
     };
     setNotes([newNote, ...notes]);
     setNewNoteTitle("");
     setNewNoteContent("");
+    if (newNoteEditorRef.current) {
+      newNoteEditorRef.current.innerHTML = "";
+    }
     setNewNoteImages([]);
+    setNewNoteTasks([]);
+    setNewNoteType("text");
+    setCurrentTask("");
     setIsAddNoteOpen(false);
   };
 
@@ -307,6 +387,51 @@ export function NotesApp() {
     setNewLabelName("");
     setNewLabelColor("#3b82f6");
     setIsLabelDialogOpen(false);
+  };
+
+  const addTask = () => {
+    if (!currentTask.trim()) return;
+
+    const newTask: Task = {
+      id: Date.now().toString(),
+      text: currentTask.trim(),
+      completed: false,
+    };
+    setNewNoteTasks([...newNoteTasks, newTask]);
+    setCurrentTask("");
+  };
+
+  const removeTask = (taskId: string) => {
+    setNewNoteTasks(newNoteTasks.filter((task) => task.id !== taskId));
+  };
+
+  const toggleTaskInNote = (noteId: string, taskId: string) => {
+    setNotes(
+      notes.map((note) => {
+        if (note.id === noteId && note.tasks) {
+          return {
+            ...note,
+            tasks: note.tasks.map((task) =>
+              task.id === taskId
+                ? { ...task, completed: !task.completed }
+                : task,
+            ),
+            updatedAt: new Date(),
+          };
+        }
+        return note;
+      }),
+    );
+
+    if (selectedNote?.id === noteId && selectedNote.tasks) {
+      setSelectedNote({
+        ...selectedNote,
+        tasks: selectedNote.tasks.map((task) =>
+          task.id === taskId ? { ...task, completed: !task.completed } : task,
+        ),
+        updatedAt: new Date(),
+      });
+    }
   };
 
   const deleteNote = (noteId: string) => {
@@ -403,51 +528,133 @@ export function NotesApp() {
                   className="border-none text-lg font-medium bg-transparent focus-visible:ring-0 px-0"
                 />
 
-                {/* Rich Text Toolbar */}
-                <div className="flex items-center gap-1 border-b pb-2">
-                  <Button variant="ghost" size="sm">
-                    <Bold className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Italic className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Underline className="w-4 h-4" />
-                  </Button>
-                  <div className="ml-2">
-                    <Button variant="ghost" size="sm">
-                      <List className="w-4 h-4" />
+                {/* Rich Text Toolbar (only for text notes) */}
+                {newNoteType === "text" && (
+                  <div className="flex items-center gap-1 border-b pb-2 mb-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => formatNewNoteText("bold")}
+                    >
+                      <Bold className="w-4 h-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => formatNewNoteText("italic")}
+                    >
+                      <Italic className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => formatNewNoteText("underline")}
+                    >
+                      <Underline className="w-4 h-4" />
+                    </Button>
+                    <div className="ml-2">
+                      <Button variant="ghost" size="sm">
+                        <List className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <Textarea
-                  placeholder="Enter note description..."
-                  value={newNoteContent}
-                  onChange={(e) => setNewNoteContent(e.target.value)}
-                  onPaste={async (e) => {
-                    const items = e.clipboardData?.items;
-                    if (!items) return;
+                {/* Text Content (only for text notes) */}
+                {newNoteType === "text" && (
+                  <div
+                    ref={newNoteEditorRef}
+                    contentEditable
+                    suppressContentEditableWarning={true}
+                    onInput={(e) => {
+                      const target = e.target as HTMLDivElement;
+                      setNewNoteContent(target.innerHTML);
+                    }}
+                    onPaste={async (e) => {
+                      const items = e.clipboardData?.items;
+                      if (!items) return;
 
-                    for (let i = 0; i < items.length; i++) {
-                      const item = items[i];
-                      if (item.type.startsWith("image/")) {
-                        e.preventDefault();
-                        const file = item.getAsFile();
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const imageUrl = event.target?.result as string;
-                            setNewNoteImages((prev) => [...prev, imageUrl]);
-                          };
-                          reader.readAsDataURL(file);
+                      for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        if (item.type.indexOf("image") === 0) {
+                          const file = item.getAsFile();
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const imageUrl = event.target?.result as string;
+                              setNewNoteImages([...newNoteImages, imageUrl]);
+                            };
+                            reader.readAsDataURL(file);
+                          }
                         }
                       }
-                    }
-                  }}
-                  rows={8}
-                  className="min-h-[200px] border-none resize-none bg-transparent focus-visible:ring-0"
-                />
+                    }}
+                    className="mt-0 pt-3 min-h-[200px] border-none resize-none bg-transparent focus:outline-none text-sm leading-relaxed [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-gray-400 [&:empty]:before:pointer-events-none"
+                    style={{ wordBreak: "break-word" }}
+                    data-placeholder="Enter note description..."
+                  />
+                )}
+
+                {/* Task Input (only for task notes) */}
+                {newNoteType === "task" && (
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add a task..."
+                        value={currentTask}
+                        onChange={(e) => setCurrentTask(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addTask();
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Button onClick={addTask} disabled={!currentTask.trim()}>
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* Task List Preview */}
+                    {newNoteTasks.length > 0 && (
+                      <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                        {newNoteTasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className="flex items-center gap-2 group"
+                          >
+                            <Checkbox
+                              checked={task.completed}
+                              onCheckedChange={() => {
+                                setNewNoteTasks(
+                                  newNoteTasks.map((t) =>
+                                    t.id === task.id
+                                      ? { ...t, completed: !t.completed }
+                                      : t,
+                                  ),
+                                );
+                              }}
+                            />
+                            <span
+                              className={`flex-1 ${task.completed ? "line-through text-gray-500" : ""}`}
+                            >
+                              {task.text}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeTask(task.id)}
+                              className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Display uploaded images */}
                 {newNoteImages.length > 0 && (
@@ -479,30 +686,54 @@ export function NotesApp() {
                 {/* Bottom Toolbar */}
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const imageUrl = event.target?.result as string;
-                            setNewNoteImages([...newNoteImages, imageUrl]);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                    </Button>
+                    {newNoteType === "text" && (
+                      <>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const imageUrl = event.target?.result as string;
+                                setNewNoteImages([...newNoteImages, imageUrl]);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setNewNoteType(
+                                newNoteType === "task" ? "text" : "task",
+                              )
+                            }
+                          >
+                            <CheckSquare className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Add tasks</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <Button variant="ghost" size="sm">
                       <Tag className="w-4 h-4" />
                     </Button>
@@ -515,7 +746,8 @@ export function NotesApp() {
                     disabled={
                       !newNoteTitle.trim() &&
                       !newNoteContent.trim() &&
-                      newNoteImages.length === 0
+                      newNoteImages.length === 0 &&
+                      newNoteTasks.length === 0
                     }
                     className="bg-black text-white hover:bg-gray-800"
                   >
@@ -751,16 +983,16 @@ export function NotesApp() {
             <div
               className={
                 viewMode === "grid"
-                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                  ? "columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6"
                   : "space-y-4"
               }
             >
               {filteredNotes.map((note) => (
                 <Card
                   key={note.id}
-                  className={`cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-[1.02] border border-gray-200 dark:border-gray-700 shadow-md ${
+                  className={`cursor-pointer transition-shadow duration-200 hover:shadow-lg border border-gray-200 dark:border-gray-700 shadow-sm ${
                     selectedNote?.id === note.id ? "ring-2 ring-primary" : ""
-                  } ${viewMode === "grid" ? "h-auto min-h-64" : "h-auto min-h-32"} bg-white dark:bg-gray-800 flex flex-col`}
+                  } ${viewMode === "grid" ? "break-inside-avoid mb-6 inline-block w-full" : "h-auto min-h-32"} bg-white dark:bg-gray-800 flex flex-col`}
                   onClick={() => setSelectedNote(note)}
                 >
                   {note.images &&
@@ -780,10 +1012,34 @@ export function NotesApp() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0 flex-1 flex flex-col justify-between">
-                    <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-4 leading-relaxed">
-                      {note.content.substring(0, 120)}
-                      {note.content.length > 120 && "..."}
-                    </p>
+                    {note.noteType === "task" && note.tasks ? (
+                      <div className="space-y-2 mb-4">
+                        {note.tasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className="flex items-center gap-2"
+                          >
+                            <Checkbox
+                              checked={task.completed}
+                              onCheckedChange={(checked) => {
+                                toggleTaskInNote(note.id, task.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span
+                              className={`text-sm ${task.completed ? "line-through text-gray-500" : "text-gray-600 dark:text-gray-300"}`}
+                            >
+                              {task.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-4 leading-relaxed">
+                        {note.content.substring(0, 120)}
+                        {note.content.length > 120 && "..."}
+                      </p>
+                    )}
                     {note.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-auto">
                         {note.tags.map((tag) => {
@@ -861,13 +1117,25 @@ export function NotesApp() {
 
             {/* Editor Toolbar */}
             <div className="flex items-center gap-2 p-4 border-b">
-              <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => formatSelectedNoteText("bold")}
+              >
                 <Bold className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => formatSelectedNoteText("italic")}
+              >
                 <Italic className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => formatSelectedNoteText("underline")}
+              >
                 <Underline className="w-4 h-4" />
               </Button>
               <div className="w-px h-6 bg-border" />
@@ -973,25 +1241,162 @@ export function NotesApp() {
 
               {/* Images */}
               {selectedNote.images && selectedNote.images.length > 0 && (
-                <div className="mb-4 grid grid-cols-2 gap-2">
+                <div className="mb-4 flex gap-2 flex-wrap">
                   {selectedNote.images.map((image, index) => (
-                    <img
-                      key={index}
-                      src={image}
-                      alt="Note"
-                      className="rounded border max-h-32 object-cover"
-                    />
+                    <div key={index} className="relative group">
+                      <img
+                        src={image}
+                        alt="Note"
+                        className="rounded border max-h-32 object-cover"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-1 right-1 h-6 w-6 p-0 bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => {
+                          const updatedNote = {
+                            ...selectedNote,
+                            images: selectedNote.images?.filter(
+                              (_, i) => i !== index,
+                            ),
+                            updatedAt: new Date(),
+                          };
+                          setSelectedNote(updatedNote);
+                          setNotes(
+                            notes.map((note) =>
+                              note.id === selectedNote.id ? updatedNote : note,
+                            ),
+                          );
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}
 
-              <Textarea
-                ref={textareaRef}
-                className="min-h-[400px] resize-none border-none outline-none bg-transparent text-sm leading-relaxed"
-                placeholder="Start writing your note... (Ctrl+V to paste images, Ctrl+Z to undo)"
-                value={selectedNote.content}
-                onChange={(e) => updateNoteContent(e.target.value)}
-              />
+              {/* Task List or Text Content */}
+              {selectedNote.noteType === "task" && selectedNote.tasks ? (
+                <div className="space-y-3">
+                  {selectedNote.tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 group"
+                    >
+                      <Checkbox
+                        checked={task.completed}
+                        onCheckedChange={() =>
+                          toggleTaskInNote(selectedNote.id, task.id)
+                        }
+                      />
+                      <span
+                        className={`flex-1 ${task.completed ? "line-through text-gray-500" : ""}`}
+                      >
+                        {task.text}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const updatedNote = {
+                            ...selectedNote,
+                            tasks: selectedNote.tasks?.filter(
+                              (t) => t.id !== task.id,
+                            ),
+                            updatedAt: new Date(),
+                          };
+                          setSelectedNote(updatedNote);
+                          setNotes(
+                            notes.map((note) =>
+                              note.id === selectedNote.id ? updatedNote : note,
+                            ),
+                          );
+                        }}
+                        className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {/* Add new task */}
+                  <div className="flex gap-2 mt-4">
+                    <Input
+                      placeholder="Add a task..."
+                      value={currentTask}
+                      onChange={(e) => setCurrentTask(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (currentTask.trim()) {
+                            const newTask: Task = {
+                              id: Date.now().toString(),
+                              text: currentTask.trim(),
+                              completed: false,
+                            };
+                            const updatedNote = {
+                              ...selectedNote,
+                              tasks: [...(selectedNote.tasks || []), newTask],
+                              updatedAt: new Date(),
+                            };
+                            setSelectedNote(updatedNote);
+                            setNotes(
+                              notes.map((note) =>
+                                note.id === selectedNote.id
+                                  ? updatedNote
+                                  : note,
+                              ),
+                            );
+                            setCurrentTask("");
+                          }
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={() => {
+                        if (currentTask.trim()) {
+                          const newTask: Task = {
+                            id: Date.now().toString(),
+                            text: currentTask.trim(),
+                            completed: false,
+                          };
+                          const updatedNote = {
+                            ...selectedNote,
+                            tasks: [...(selectedNote.tasks || []), newTask],
+                            updatedAt: new Date(),
+                          };
+                          setSelectedNote(updatedNote);
+                          setNotes(
+                            notes.map((note) =>
+                              note.id === selectedNote.id ? updatedNote : note,
+                            ),
+                          );
+                          setCurrentTask("");
+                        }
+                      }}
+                      disabled={!currentTask.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  ref={selectedNoteEditorRef}
+                  contentEditable
+                  suppressContentEditableWarning={true}
+                  className="min-h-[400px] border-none outline-none bg-transparent text-sm leading-relaxed focus:outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-gray-400 [&:empty]:before:pointer-events-none"
+                  style={{ wordBreak: "break-word" }}
+                  dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLDivElement;
+                    updateNoteContent(target.innerHTML);
+                  }}
+                  data-placeholder="Start writing your note... (Ctrl+V to paste images, Ctrl+Z to undo)"
+                />
+              )}
             </div>
           </div>
         </div>
